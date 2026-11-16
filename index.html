@@ -1,0 +1,144 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeerJS Multiplayer Game</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            margin-top: 20px; 
+            background: #121212; 
+            color: #e0e0e0; 
+        }
+        canvas { 
+            background: #2a2a2a; 
+            display: block; 
+            margin: 20px auto; 
+            border: 2px solid #4caf50; 
+            border-radius: 8px;
+        }
+        .controls { 
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 20px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        input, button { 
+            padding: 10px; 
+            margin: 5px; 
+            font-size: 16px; 
+            border: none;
+            border-radius: 4px;
+        }
+        input { background: #333; color: #fff; }
+        button { 
+            background: #4caf50; 
+            color: white; 
+            cursor: pointer; 
+            font-weight: bold;
+        }
+        button:hover { background: #45a049; }
+        #my-id { color: #4caf50; font-family: monospace; font-size: 24px; letter-spacing: 2px;}
+        #status { font-style: italic; color: #aaa; margin-top: 15px;}
+    </style>
+</head>
+<body>
+    <h2>WebRTC Real-Time Multiplayer</h2>
+    
+    <div class="controls">
+        <p>Your ID: <strong id="my-id">Connecting...</strong></p>
+        <input type="text" id="join-id" placeholder="Enter 4-Digit ID" maxlength="4">
+        <button id="connect-btn">Connect & Play</button>
+        <p id="status">Status: Waiting for connection...</p>
+    </div>
+
+    <canvas id="gameCanvas" width="500" height="400"></canvas>
+
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script>
+        // --- CHANGED START: Generate a short 4-digit number for the ID ---
+        const shortPin = Math.floor(1000 + Math.random() * 9000).toString();
+        const peer = new Peer(shortPin);
+        // --- CHANGED END ---
+
+        let connection = null;
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let myPos = { x: 50, y: 50, color: '#4caf50' }; 
+        let peerPos = { x: 430, y: 330, color: '#f44336' }; 
+
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        peer.on('connection', (conn) => {
+            connection = conn;
+            setupConnection();
+        });
+
+        document.getElementById('connect-btn').addEventListener('click', () => {
+            const friendId = document.getElementById('join-id').value;
+            if (!friendId) return;
+            connection = peer.connect(friendId);
+            setupConnection();
+        });
+
+        function setupConnection() {
+            connection.on('open', () => {
+                document.getElementById('status').innerText = 'Status: Connected! Use Arrow Keys to move.';
+                document.getElementById('status').style.color = '#4caf50';
+            });
+
+            connection.on('data', (data) => {
+                peerPos.x = data.x;
+                peerPos.y = data.y;
+            });
+            
+            connection.on('close', () => {
+                document.getElementById('status').innerText = 'Status: Disconnected.';
+                document.getElementById('status').style.color = '#f44336';
+                connection = null;
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+
+            if (!connection || !connection.open) return;
+            
+            const speed = 15;
+            if (e.key === 'ArrowUp') myPos.y = Math.max(0, myPos.y - speed);
+            if (e.key === 'ArrowDown') myPos.y = Math.min(canvas.height - 20, myPos.y + speed);
+            if (e.key === 'ArrowLeft') myPos.x = Math.max(0, myPos.x - speed);
+            if (e.key === 'ArrowRight') myPos.x = Math.min(canvas.width - 20, myPos.x + speed);
+
+            connection.send({ x: myPos.x, y: myPos.y });
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = myPos.color;
+            ctx.fillRect(myPos.x, myPos.y, 20, 20);
+
+            if (connection && connection.open) {
+                ctx.fillStyle = peerPos.color;
+                ctx.fillRect(peerPos.x, peerPos.y, 20, 20);
+            }
+            
+            requestAnimationFrame(draw);
+        }
+        
+        draw();
+    </script>
+</body>
+</html>
